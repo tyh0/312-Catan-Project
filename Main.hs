@@ -168,7 +168,6 @@ landtoupleft (_, _, _, (top, _, _, _, _, ul)) (_, _, lands, _) =
 -- so this is only really useful for the first tile
 roadedgesforrange nodestart startid
   = (startid + 5, NoRoad, nodestart + 5, nodestart):([(startid + x, NoRoad, nodestart + x, nodestart + 1 + x)| x <- [0..4]])
-   
 
 -- build board takes a random seed and
 -- generates a fresh settlers board
@@ -231,7 +230,6 @@ addland board land rollno dir =
     case prev of Nothing -> addfirstland land rollno
                  Just pl -> addnextland board land rollno pl dir
 
-
 -- add first land to a brand new board
 addfirstland :: SCLand -> Int -> SCBoard
 addfirstland land rollno
@@ -248,4 +246,35 @@ addfirstland land rollno
 --    that are not already there
 addnextland :: SCBoard -> SCLand -> Int -> LandEdge -> Direction -> SCBoard
 -- TODO stub
-addnextland _ _ _ _ _ = emptyboard
+addnextland (id, nodes, lands, roads) land rollno prevland direction =
+  let existingnodes = getexistingnodes prevland direction lands
+      (newnodes, newnodeset) = add_needed_nodes existingnodes (id + 1)
+      nodesneeded = length newnodes
+      newedges = makeneedededges newnodeset roads (id + 1 + nodesneeded)
+      edgesneeded = length newedges
+      in (id + 1 +  nodesneeded + edgesneeded, 
+        newnodes ++ nodes,
+        (id, land, rollno, newnodeset):lands,
+        newedges ++ roads)
+
+
+-- fill in each slot in the nodeset for a land with 0 if there
+-- is no node for it, or the node's id if there is
+getexistingnodes :: LandEdge -> Direction -> [LandEdge]-> NodeList
+-- TODO Stub
+getexistingnodes _ _ _ = (0, 0, 0, 0, 0 ,0)
+
+-- given a nodeset, return a list of empty nodes for each
+-- 0 value, starting with id
+add_needed_nodes :: NodeList -> Int -> ([SCNode], NodeList)
+-- TODO STUB
+add_needed_nodes _ _ = ([], (0,0,0,0,0,0))
+
+-- given a nodeset, create empty RoadEdges for any that don't exist
+-- starting with id
+makeneedededges :: NodeList -> [RoadEdge] -> Int -> [RoadEdge]
+-- TODO stub
+makeneedededges _ _ _ = []
+  
+
+

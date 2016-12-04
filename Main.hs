@@ -257,7 +257,6 @@ addnextland (id, nodes, lands, roads) land rollno prevland direction =
         (id, land, rollno, newnodeset):lands,
         newedges ++ roads)
 
-
 -- fill in each slot in the nodeset for a land with 0 if there
 -- is no node for it, or the node's id if there is
 getexistingnodes :: LandEdge -> Direction -> [LandEdge]-> NodeList
@@ -267,8 +266,22 @@ getexistingnodes _ _ _ = (0, 0, 0, 0, 0 ,0)
 -- given a nodeset, return a list of empty nodes for each
 -- 0 value, starting with id
 add_needed_nodes :: NodeList -> Int -> ([SCNode], NodeList)
--- TODO STUB
-add_needed_nodes _ _ = ([], (0,0,0,0,0,0))
+add_needed_nodes nl id = add_needed_nodes_helper [] nl id
+-- recursive helper
+add_needed_nodes_helper :: [SCNode] -> NodeList -> Int -> ([SCNode], NodeList)
+add_needed_nodes_helper acc (up, ur, dr, dn, dl, ul) id
+  | up == 0 = add_needed_nodes_helper ((id, NoBuilding):acc) (id, ur, dr, dn, dl, ul) (id + 1)
+  | ur == 0 = add_needed_nodes_helper ((id, NoBuilding):acc)
+  (up, id, dr, dn, dl, ul) (id + 1)
+  | dr == 0 = add_needed_nodes_helper ((id, NoBuilding):acc) 
+  (up, ur, id, dn, dl, ul) (id + 1)
+  | dn == 0 = add_needed_nodes_helper ((id, NoBuilding):acc) 
+  (up, ur, dr, id, dl, ul) (id + 1)
+  | dl == 0 = add_needed_nodes_helper ((id, NoBuilding):acc)
+  (up, ur, dr, dn, id, ul) (id + 1)
+  | ul == 0 = add_needed_nodes_helper ((id, NoBuilding):acc) 
+  (up, ur, dr, dn, dl, id) (id + 1)
+  | otherwise = (acc, (up, ur, dr, dn, dl, ul))
 
 -- given a nodeset, create empty RoadEdges for any that don't exist
 -- starting with id

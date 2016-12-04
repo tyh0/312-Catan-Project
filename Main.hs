@@ -239,6 +239,13 @@ addfirstland land rollno
     [(1, land, rollno, (2,3,4,5,6,7))], 
     (roadedgesforrange 2 8))
 
+-- addnextland has to do a lot of things
+-- 1. It needs to place a new land on the board
+-- 2. It needs to look back from the previous tile to find and nodes
+--    that the land should be connected to (we can do this by 
+--    walking around the tile from the previous tile
+-- 3. It needs to add nodes and roadedges for any nodes
+--    that are not already there
 addnextland :: SCBoard -> SCLand -> Int -> LandEdge -> Direction -> SCBoard
 -- TODO stub
 addnextland _ _ _ _ _ = emptyboard

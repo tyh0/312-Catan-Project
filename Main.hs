@@ -195,13 +195,13 @@ hextiletoright (_, _, _, (_, ur, dr, _, _, _)) (_, _, hextiles, _) =
 -- or none if this is at an edge of the board
 hextiletoupright :: HexTile -> SCBoard -> Maybe HexTile
 hextiletoupright (_, _, _, (top, ur, _, _, _, _)) (_, _, hextiles, _) =
-  find (\ (_, _, _, (_, _, _, down, dl, _)) -> top == dl && ur == dl) hextiles
+  find (\ (_, _, _, (_, _, _, down, dl, _)) -> top == dl && ur == down) hextiles
 
 -- hextiletodownleft returns the hextile down and to the left
 -- or none if this is at an edge of the board
 hextiletodownleft :: HexTile -> SCBoard -> Maybe HexTile
-hextiletodownleft (_, _, _, (_, _, _, down, dl, _)) (_, _, hextiles, _) =
-  find (\ (_, _, _, (top, ur, _, _, _, _)) -> top == dl && ur == dl) hextiles
+hextiletodownleft (_, _, _, (_, _, _, dn, dl, _)) (_, _, hextiles, _) =
+  find (\ (_, _, _, (top, ur, _, _, _, _)) -> top == dl && ur == dn) hextiles
 
 -- hextiletodownright returns the hextile down and to the right
 -- or none if this is at an edge of the board
@@ -214,7 +214,7 @@ hextiletodownright (_, _, _, (_, _, dr, down, _, _)) (_, _, hextiles, _) =
 hextiletoupleft :: HexTile -> SCBoard -> Maybe HexTile
 hextiletoupleft (_, _, _, (top, _, _, _, _, ul)) (_, _, hextiles, _) =
   find (\ (_, _, _, (_, _, dr, down, _, _)) -> down == ul && dr == top) hextiles
-  
+
 -- roadsforrange creates roads for a group of id numbers
 -- assumption is you pass the start of a range of 6 consecutive ids
 -- so this is only really useful for the first tile
@@ -275,7 +275,9 @@ addnexthextilecheck board res rollno lasthextile dir
       (Just any, _) -> error
         (printf "Land already exists: %d lands placed\n %s\n%s\n%s\n" 
           count (show any) (show lasthextile) (show board))
-      (Nothing, Nothing) -> error (printf "placed in wrong direction\n%s" (show result))
+      (Nothing, Nothing) -> error (printf 
+        "placed in wrong direction, expected %s\n%s" 
+        (show dir) (show result))
       (Nothing, Just any) -> result
 
 -- add first hextile to a brand new board
@@ -311,7 +313,17 @@ getexistingnodeschk ht dir hts
   = let newnodeset = getexistingnodes ht dir hts
         (a,b,c,d,e,f) = newnodeset
         count = length (filter (\ x -> x /= 0) [a,b,c,d,e,f])
-        in if (count < 2) then (error "no overlap") else newnodeset
+        chkvals = (\ x y -> if (x == 0 || y == 0) then 
+          (error (printf "chk failed %s%s" (show newnodeset) (show dir)))
+          else newnodeset)
+        in case ((count < 2), dir) of
+          (True, _) -> error "there sould be at least 2 nodes"
+          (_, UR) -> chkvals d e
+          (_, R)  -> chkvals e f
+          (_, DR) -> chkvals a f
+          (_, DL) -> chkvals a b
+          (_, L)  -> chkvals b c
+          (_, UL) -> chkvals c d
 
 -- fill in each slot in the nodeset for a hextile with 0 if there
 -- input direction is the direction we moved in to get to the new node
@@ -337,14 +349,15 @@ getexistingnodes le dir hextiles
   in existingnodeshelper le sid (sharednodes le dir) dir hextiles
 
 -- fill in a node list with just the nodes facing
+-- direction (and flip them so it is from the new node's perspective)
 sharednodes :: HexTile -> Direction -> NodeList
 sharednodes (_, _, _, (up, ur, dr, dn, dl,ul)) dir
   = case dir of 
       UR -> (0,0,0,ur,up,0)
-      R  -> (0,ul,dl,0,0,0)
+      R  -> (0,0,0,0,dr,ur)
       DR -> (dr,0,0,0,0,dn)
       DL -> (dl,dn,0,0,0,0)
-      L  -> (0,0,0,0,dr,ur)
+      L  -> (0,ul,dl,0,0,0)
       UL -> (0,0,up,ul,0,0)
 
 -- takes a current HexTile
@@ -385,8 +398,9 @@ cw_move UL = (L, UR)
 -- input_dir is a direction facing in towards the centre
 -- of clockwise ring
 -- returns (go, in)
--- go is the next direction to go in a clockwise ring
--- in is the direction facing towards the centre
+-- go is the next direction to go in a clockwise ring around the new
+-- node's locaiton
+-- in is the direction facing towards the centre from the next position
 ccw_move :: Direction -> (Direction, Direction)
 ccw_move UR = (R, UL)
 ccw_move UL = (UR, L)

@@ -69,13 +69,13 @@ data Resource =
 -- tools to build up the initial board
 
 initType a 
-  | a <= 4 = Land Brick
-  | a <= 8 = Land Grain
-  | a <= 12 = Land Wood
-  | a <= 16 = Land Ore
+  | a <= 3 = Land Brick
+  | a <= 7 = Land Grain
+  | a <= 11 = Land Wood
+  | a <= 14 = Land Ore
   | otherwise = Land Sheep
 
-init_typelist = (Desert:[initType x | x <- [1..24]])
+init_typelist = (Desert:[initType x | x <- [1..18]])
  
 -- Note
 -- this isn't really random, but we could change the seed up
@@ -182,6 +182,8 @@ starting_tile_numbers = [5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8,
 -- it adds a new land and its associated edges and nodes
 boardwithlist :: [SCLand] -> [Int] -> [Direction] -> SCBoard -> SCBoard
 boardwithlist [] _ _ board = board
+boardwithlist _ [] _ board = error "Not enough tile numbers"
+boardwithlist _ _ [] board = error "Not enough directions"
 boardwithlist (Desert:rs) tlist (d:ds) board = 
   boardwithlist rs tlist ds (addland board Desert 7 d)
 boardwithlist (r:rs) (x:xs) (d:ds) board = boardwithlist rs xs ds (addland board r x d)
@@ -245,7 +247,6 @@ addfirstland land rollno
 -- 3. It needs to add nodes and roadedges for any nodes
 --    that are not already there
 addnextland :: SCBoard -> SCLand -> Int -> LandEdge -> Direction -> SCBoard
--- TODO stub
 addnextland (id, nodes, lands, roads) land rollno prevland direction =
   let existingnodes = getexistingnodes prevland direction lands
       (newnodes, newnodeset) = add_needed_nodes existingnodes (id + 1)
@@ -260,8 +261,107 @@ addnextland (id, nodes, lands, roads) land rollno prevland direction =
 -- fill in each slot in the nodeset for a land with 0 if there
 -- is no node for it, or the node's id if there is
 getexistingnodes :: LandEdge -> Direction -> [LandEdge]-> NodeList
--- TODO Stub
-getexistingnodes _ _ _ = (0, 0, 0, 0, 0 ,0)
+-- first add the ones from the previous edge
+-- then use a recursive helper to look for more
+getexistingnodes le dir lands =
+  let (sid, _, _, (up, ur, dr, dn, dl, ul)) = le
+    in case dir of
+      UR -> existingnodeshelper le sid (sharednodes le DL) DL lands
+      R  -> existingnodeshelper le sid (sharednodes le L) L lands
+      DR -> existingnodeshelper le sid (sharednodes le UL) UL lands
+      DL -> existingnodeshelper le sid (sharednodes le UR) UR lands
+      L  -> existingnodeshelper le sid (sharednodes le R)  R lands
+      UL -> existingnodeshelper le sid (sharednodes le DR) DR lands
+
+-- fill in a node list with just the nodes facing
+-- direction on a landedge
+sharednodes :: LandEdge -> Direction -> NodeList
+sharednodes (_, _, _, (up, ur, dr, dn, dl,ul)) dir
+  = case dir of 
+      UR -> (0,0,0,ur,up,0)
+      R  -> (0,ul,dl,0,0,0)
+      DR -> (dr,0,0,0,0,dn)
+      DL -> (dl,dn,0,0,0,0)
+      L  -> (0,0,0,0,dr,ur)
+      UL -> (0,0,up,ul,0,0)
+
+-- takes a current landedge
+-- an id (this is the start, so we don't get stuck in an infinite loop
+-- a direction (this time the direction of the new land
+existingnodeshelper :: LandEdge -> Int -> NodeList -> Direction -> [LandEdge] -> NodeList
+existingnodeshelper le sid nl dir lands
+  = nodeunify (enodescw le sid nl dir lands) (enodesccw le sid nl dir lands)
+
+-- choose non-zero items for each elem in a nodelist
+nodeunify :: NodeList -> NodeList -> NodeList
+nodeunify (a1,b1,c1,d1,e1,f1) (a2,b2,c2,d2,e2,f2) = 
+  let nz = (\ a b -> if (a == 0) then a else b) in
+    ((nz a1 a2),
+      (nz b1 b2),
+      (nz c1 c2),
+      (nz d1 d2),
+      (nz e1 e2),
+      (nz f1 f2))
+
+-- cw_move input_dir
+-- input_dir is a direction facing in towards the centre
+-- of clockwise ring
+-- returns (go, in)
+-- go is the next direction to go in a clockwise ring
+-- in is the direction facing towards the centre
+cw_move :: Direction -> (Direction, Direction)
+cw_move UR = (UL, R)
+cw_move R  = (UR, DR)
+cw_move DR = (R,  DL)
+cw_move DL = (DR, L)
+cw_move L  = (DL, UL)
+cw_move UL = (L, UR)
+
+-- ccw_move input_dir
+-- input_dir is a direction facing in towards the centre
+-- of clockwise ring
+-- returns (go, in)
+-- go is the next direction to go in a clockwise ring
+-- in is the direction facing towards the centre
+ccw_move :: Direction -> (Direction, Direction)
+ccw_move UR = (R, UL)
+ccw_move UL = (UR, L)
+ccw_move L  = (UL, DL)
+ccw_move DL = (L, DR)
+ccw_move DR = (DL, R)
+ccw_move R  = (DR, UR)
+
+-- search clockwise for points around a space
+enodescw :: LandEdge -> Int -> NodeList -> Direction -> [LandEdge] -> NodeList
+enodescw current sid acc dir lands
+ = let (go, indir) = cw_move dir
+  in case (landindir current dir lands) of
+    Nothing -> acc
+    Just le -> let (id, _, _,_)  = le in
+      if (sid == id) then acc else (enodescw le sid 
+      (nodeunify acc (sharednodes le indir)) indir lands)
+
+-- search counterclockwise for points around a space
+enodesccw :: LandEdge -> Int -> NodeList -> Direction -> [LandEdge] -> NodeList
+enodesccw current sid acc dir lands
+ = let (go, indir) = ccw_move dir
+  in case (landindir current dir lands) of
+    Nothing -> acc
+    Just le -> let (id, _, _,_)  = le in
+      if (sid == id) then acc else (enodesccw le sid 
+      (nodeunify acc (sharednodes le indir)) indir lands)
+
+-- get a land in a direction
+landindir :: LandEdge -> Direction -> [LandEdge] -> Maybe LandEdge
+landindir le dir lands=
+  let fakeboard = (0, [], lands, [])
+  in case dir of
+    UR -> landtoupright le fakeboard
+    R  -> landtoright le fakeboard
+    DR -> landtodownright le fakeboard
+    DL -> landtodownleft le fakeboard
+    L  -> landtoleft le fakeboard
+    UL -> landtoupleft le fakeboard
 
 -- given a nodeset, return a list of empty nodes for each
 -- 0 value, starting with id
@@ -286,8 +386,24 @@ add_needed_nodes_helper acc (up, ur, dr, dn, dl, ul) id
 -- given a nodeset, create empty RoadEdges for any that don't exist
 -- starting with id
 makeneedededges :: NodeList -> [RoadEdge] -> Int -> [RoadEdge]
--- TODO stub
-makeneedededges _ _ _ = []
-  
+makeneedededges nl roads id = needededgeshelper [] (neededpairs nl) roads id
 
+needededgeshelper :: [RoadEdge] -> [(Int, Int)] -> [RoadEdge] -> Int -> [RoadEdge]
+
+needededgeshelper acc [] _ _ = acc
+
+needededgeshelper acc ((n1, n2):pairs) roads id = 
+  case (findroad n1 n2 roads) of
+    Just _ -> needededgeshelper acc pairs roads id
+    Nothing -> needededgeshelper ((id, NoRoad, n1, n2):acc) pairs roads (id + 1)
+
+-- find a road connecting 2 points
+findroad :: Int -> Int -> [RoadEdge] -> Maybe RoadEdge
+findroad a b roads 
+  = find (\ (_, _, x, y) -> (x == a && y == b) || (x == b && y == a)) roads
+
+-- List all the pairs of nodes needed from a nodelist
+neededpairs :: NodeList -> [(Int, Int)]
+neededpairs (a, b, c, d, e,f)
+  = [(a,b), (b, c), (c,d), (d,e), (e,f), (f,a)]
 

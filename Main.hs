@@ -467,7 +467,7 @@ neededpairs (a, b, c, d, e,f) =
  -- find a HexTile with the given tile roll value
 findhextilebytokenvalue :: Int -> [HexTile] -> [HexTile]
 findhextilebytokenvalue x [] = []
-findhextilebytokenvalue x ((_,_,i,_):t) =
+findhextilebytokenvalue x ((_,_,i,_):t)
  | x == i = (_,_,i,_):findhextilebytokenvalue x t
  | otherwise = findhextilebytokenvalue x t
 

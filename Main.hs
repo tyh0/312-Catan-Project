@@ -14,9 +14,45 @@ import Data.Maybe
 -- moves
 
 -- there can be up to 4 players
-data  Player 
-  = Player1 | Player2 | Player3 | Player4
+-- data  Player 
+--   = Player1 | Player2 | Player3 | Player4
+--   deriving(Show)
+
+-- A player has: 
+-- A set of buildable tokens (15 roads, 3 settlements, 3 cities)
+-- A hand of resource cards
+-- A collection of development cards
+data Player
+ = BuildingTokens ResourceHand DevCardHand 
   deriving(Show)
+
+-- a player's hand of resources is a list of resource cards
+type ResourceHand
+ = [ResourceCard] 
+
+-- a players devcard hand is a list of development cards
+type DevCardHand 
+ = [DevCard] 
+
+-- a resource card has an id Int, and a Resource type
+type ResourceCard
+ = (Int, Resource) 
+
+-- a resource card has an id Int and a card type
+-- types are: 
+-- knight
+-- victory point
+-- road building
+-- monopoly
+-- year of plenty
+data DevCardValue = K | VP | RB | M | YOP
+ deriving(Show)
+
+type DevCard
+ = (Int, DevCardValue)
+
+
+
 
 -- A move consists a player and each phase
 -- An initial game also counts as a move
@@ -43,7 +79,7 @@ type SCTradePhase = [Trade]
 -- ResourceSet2  (resources going from P2 to P1)
 type Trade = (Player, TradeEntity, ResourceSet, ResourceSet)
   
-data TradeEntity = TEPlayer Player | Port | Bank
+data TradeEntity = TEPlayer Player | SCPort | Bank
   deriving(Show)
 
 -- ResourceSet is number of Grain, Bricks, Sheep, Wood, and Ore
@@ -59,7 +95,11 @@ data Building
   deriving(Show)
 
 data SCResource =
-  Desert |  Land Resource
+  Desert |  Land Resource | Water SCPort
+  deriving(Show)
+
+data SCPort = 
+  Wildcard | PBrick | PGrain | PWood | POre | PSheep
   deriving(Show)
 
 data Resource = 

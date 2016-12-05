@@ -58,7 +58,7 @@ data Building
   | NewCity Int
   deriving(Show)
 
-data SCLand =
+data SCResource =
   Desert |  Land Resource
   deriving(Show)
 
@@ -84,7 +84,12 @@ shuffle_seed = 10
 shuffled_typelist seed = 
   shuffle' init_typelist (length init_typelist) (mkStdGen seed)
 
-type SCBoard = (Int, [SCNode], [LandEdge], [RoadEdge])
+-- a board consists of: 
+-- a boardID int,
+-- a list of nodes [SCNode],
+-- a list of HexTiles that span those nodes, [HexTile],
+-- a list of road edges that span those nodes, [RoadEdge]
+type SCBoard = (Int, [SCNode], [HexTile], [RoadEdge])
 
 -- an edge connects nodes on the board
 -- we have 2 types of edges
@@ -95,8 +100,8 @@ type RoadEdge = (Int, MaybeSCRoad, Int, Int)
 -- Land Edge which has an ID
 -- a number representing its dice
 -- and a group of connected nodes (as ids)
-type LandEdge = (Int, SCLand, Int, NodeList)
--- A nodelist is a tuple of 6 ids
+type HexTile = (Int, SCResource, Int, NodeList)
+-- A nodelist is a tuple of 6 SCNode ids
 -- starting from top and moving clockwise
 -- so (Up, UR, DR, Down, DL, UL)
 type NodeList = (Int, Int, Int, Int, Int, Int)
@@ -117,51 +122,51 @@ nodeforid :: Int -> SCBoard -> Maybe SCNode
 nodeforid id (_, nodes, _, _) 
   = find (\ (nid, _) -> nid == id) nodes
 
-landforid :: Int -> SCBoard -> Maybe LandEdge
-landforid id (_, _, lands, _)
-  = find (\ (lid, _, _, _) -> lid == id) lands
+hextileforid :: Int -> SCBoard -> Maybe HexTile
+hextileforid id (_, _, hextiles, _)
+  = find (\ (lid, _, _, _) -> lid == id) hextiles
 
 roadedgeforid :: Int -> SCBoard -> Maybe RoadEdge
 roadedgeforid id  (_, _, _, roads)
   = find (\ (rid, _, _, _) -> rid == id) roads
 
--- landtoleft returns the the land to the left of a given input land
+-- hextiletoleft returns the the hextile to the left of a given input hextile
 -- or none if this is the leftmost
 -- or none if this is not in
-landtoleft :: LandEdge -> SCBoard -> Maybe LandEdge
-landtoleft (_, _, _, (_, _, _, _, dl, ul)) (_, _, lands, _) =
-  find (\ (_, _, _, (_, ur, dr, _, _, _)) -> ur == ul && dr == dl) lands
+hextiletoleft :: HexTile -> SCBoard -> Maybe HexTile
+hextiletoleft (_, _, _, (_, _, _, _, dl, ul)) (_, _, hextiles, _) =
+  find (\ (_, _, _, (_, ur, dr, _, _, _)) -> ur == ul && dr == dl) hextiles
 
--- landtoright returns the the land to the right of a given input land
+-- hextiletoright returns the the hextile to the right of a given input hextile
 -- or none if this is the right edge
 -- or none if this is not in
-landtoright :: LandEdge -> SCBoard -> Maybe LandEdge
-landtoright (_, _, _, (_, ur, dr, _, _, _)) (_, _, lands, _) =
-  find (\ (_, _, _, (_, _, _, _, dl, ul)) -> ur == ul && dr == dl) lands
+hextiletoright :: HexTile -> SCBoard -> Maybe HexTile
+hextiletoright (_, _, _, (_, ur, dr, _, _, _)) (_, _, hextiles, _) =
+  find (\ (_, _, _, (_, _, _, _, dl, ul)) -> ur == ul && dr == dl) hextiles
 
--- landtoupright returns the land up and to the right
+-- hextiletoupright returns the hextile up and to the right
 -- or none if this is at an edge of the board
-landtoupright :: LandEdge -> SCBoard -> Maybe LandEdge
-landtoupright (_, _, _, (top, ur, _, _, _, _)) (_, _, lands, _) =
-  find (\ (_, _, _, (_, _, _, down, dl, _)) -> top == dl && ur == dl) lands
+hextiletoupright :: HexTile -> SCBoard -> Maybe HexTile
+hextiletoupright (_, _, _, (top, ur, _, _, _, _)) (_, _, hextiles, _) =
+  find (\ (_, _, _, (_, _, _, down, dl, _)) -> top == dl && ur == dl) hextiles
 
--- landtodownleft returns the land down and to the left
+-- hextiletodownleft returns the hextile down and to the left
 -- or none if this is at an edge of the board
-landtodownleft :: LandEdge -> SCBoard -> Maybe LandEdge
-landtodownleft (_, _, _, (_, _, _, down, dl, _)) (_, _, lands, _) =
-  find (\ (_, _, _, (top, ur, _, down, dl, _)) -> top == dl && ur == dl) lands
+hextiletodownleft :: HexTile -> SCBoard -> Maybe HexTile
+hextiletodownleft (_, _, _, (_, _, _, down, dl, _)) (_, _, hextiles, _) =
+  find (\ (_, _, _, (top, ur, _, down, dl, _)) -> top == dl && ur == dl) hextiles
 
--- landtodownright returns the land down and to the right
+-- hextiletodownright returns the hextile down and to the right
 -- or none if this is at an edge of the board
-landtodownright :: LandEdge -> SCBoard -> Maybe LandEdge
-landtodownright (_, _, _, (_, _, dr, down, _, _)) (_, _, lands, _) =
-  find (\ (_, _, _, (top, _, _, _, _, ul)) -> down == ul && dr == top) lands
+hextiletodownright :: HexTile -> SCBoard -> Maybe HexTile
+hextiletodownright (_, _, _, (_, _, dr, down, _, _)) (_, _, hextiles, _) =
+  find (\ (_, _, _, (top, _, _, _, _, ul)) -> down == ul && dr == top) hextiles
 
--- landtoupleft returns the land down and to the left
+-- hextiletoupleft returns the hextile down and to the left
 -- or none if this is at an edge of the board
-landtoupleft :: LandEdge -> SCBoard -> Maybe LandEdge
-landtoupleft (_, _, _, (top, _, _, _, _, ul)) (_, _, lands, _) =
-  find (\ (_, _, _, (_, _, dr, down, _, _)) -> down == ul && dr == top) lands
+hextiletoupleft :: HexTile -> SCBoard -> Maybe HexTile
+hextiletoupleft (_, _, _, (top, _, _, _, _, ul)) (_, _, hextiles, _) =
+  find (\ (_, _, _, (_, _, dr, down, _, _)) -> down == ul && dr == top) hextiles
   
 -- roadsforrange creates roads for a group of id numbers
 -- assumption is you pass the start of a range of 6 consecutive ids
@@ -179,16 +184,16 @@ starting_tile_numbers = [5, 2, 6, 3, 8, 10, 9, 12, 11, 4, 8,
   10, 9, 4, 5, 6, 3, 11]
 
 -- boardwithlist generateds a board from a resource list
--- it adds a new land and its associated edges and nodes
-boardwithlist :: [SCLand] -> [Int] -> [Direction] -> SCBoard -> SCBoard
+-- it adds a new hextile and its associated edges and nodes
+boardwithlist :: [SCResource] -> [Int] -> [Direction] -> SCBoard -> SCBoard
 boardwithlist [] _ _ board = board
 boardwithlist _ [] _ board = error "Not enough tile numbers"
 boardwithlist _ _ [] board = error "Not enough directions"
 boardwithlist (Desert:rs) tlist (d:ds) board = 
-  boardwithlist rs tlist ds (addland board Desert 7 d)
-boardwithlist (r:rs) (x:xs) (d:ds) board = boardwithlist rs xs ds (addland board r x d)
+  boardwithlist rs tlist ds (addhextile board Desert 7 d)
+boardwithlist (r:rs) (x:xs) (d:ds) board = boardwithlist rs xs ds (addhextile board r x d)
 
--- lands get added in a spiral
+-- hextiles get added in a spiral
 data Direction = UR | R | DR | DL | L | UL
   deriving(Show)
 
@@ -208,74 +213,74 @@ starting_directions =
    DL, DL, DR, R, UR, UL, L, -- inner ring
    DL] -- center
 
--- find the last land added in a board (the one with the highest id)
-lastlandadded :: SCBoard -> Maybe LandEdge
-lastlandadded (_, _, lands, _) 
-  = foldl lastlandhelper Nothing lands
+-- find the last hextile added in a board (the one with the highest id)
+lasthextileadded :: SCBoard -> Maybe HexTile
+lasthextileadded (_, _, hextiles, _) 
+  = foldl lasthextilehelper Nothing hextiles
 
--- True if the first landedge has a higher id
-higherid :: LandEdge -> LandEdge -> Bool
+-- True if the first HexTile has a higher id
+higherid :: HexTile -> HexTile -> Bool
 higherid (id1, _, _, _) (id2, _, _, _) 
   | id1 > id2 = True
   | otherwise = False
 
--- helper for finding the max land
-lastlandhelper :: Maybe LandEdge -> LandEdge -> Maybe LandEdge
-lastlandhelper Nothing any = Just any
-lastlandhelper (Just l1) l2
+-- helper for finding the max hextile
+lasthextilehelper :: Maybe HexTile -> HexTile -> Maybe HexTile
+lasthextilehelper Nothing any = Just any
+lasthextilehelper (Just l1) l2
   | higherid l1 l2 = Just l1
   | otherwise = Just l2
 
-addland :: SCBoard -> SCLand -> Int -> Direction -> SCBoard
-addland board land rollno dir =
-  let prev = lastlandadded board in 
-    case prev of Nothing -> addfirstland land rollno
-                 Just pl -> addnextland board land rollno pl dir
+addhextile :: SCBoard -> SCResource -> Int -> Direction -> SCBoard
+addhextile board hextile rollno dir =
+  let prev = lasthextileadded board in 
+    case prev of Nothing -> addfirsthextile hextile rollno
+                 Just pl -> addnexthextile board hextile rollno pl dir
 
--- add first land to a brand new board
-addfirstland :: SCLand -> Int -> SCBoard
-addfirstland land rollno
+-- add first hextile to a brand new board
+addfirsthextile :: SCResource -> Int -> SCBoard
+addfirsthextile hextile rollno
   = (14, [(id, NoBuilding)| id <- [2..7]], 
-    [(1, land, rollno, (2,3,4,5,6,7))], 
+    [(1, hextile, rollno, (2,3,4,5,6,7))], 
     (roadedgesforrange 2 8))
 
--- addnextland has to do a lot of things
--- 1. It needs to place a new land on the board
+-- addnexthextile has to do a lot of things
+-- 1. It needs to place a new hextile on the board
 -- 2. It needs to look back from the previous tile to find and nodes
---    that the land should be connected to (we can do this by 
+--    that the hextile should be connected to (we can do this by 
 --    walking around the tile from the previous tile
 -- 3. It needs to add nodes and roadedges for any nodes
 --    that are not already there
-addnextland :: SCBoard -> SCLand -> Int -> LandEdge -> Direction -> SCBoard
-addnextland (id, nodes, lands, roads) land rollno prevland direction =
-  let existingnodes = getexistingnodes prevland direction lands
+addnexthextile :: SCBoard -> SCResource -> Int -> HexTile -> Direction -> SCBoard
+addnexthextile (id, nodes, hextiles, roads) hextile rollno prevhextile direction =
+  let existingnodes = getexistingnodes prevhextile direction hextiles
       (newnodes, newnodeset) = add_needed_nodes existingnodes (id + 1)
       nodesneeded = length newnodes
       newedges = makeneedededges newnodeset roads (id + 1 + nodesneeded)
       edgesneeded = length newedges
       in (id + 1 +  nodesneeded + edgesneeded, 
         newnodes ++ nodes,
-        (id, land, rollno, newnodeset):lands,
+        (id, hextile, rollno, newnodeset):hextiles,
         newedges ++ roads)
 
--- fill in each slot in the nodeset for a land with 0 if there
+-- fill in each slot in the nodeset for a hextile with 0 if there
 -- is no node for it, or the node's id if there is
-getexistingnodes :: LandEdge -> Direction -> [LandEdge]-> NodeList
+getexistingnodes :: HexTile -> Direction -> [HexTile]-> NodeList
 -- first add the ones from the previous edge
 -- then use a recursive helper to look for more
-getexistingnodes le dir lands =
+getexistingnodes le dir hextiles =
   let (sid, _, _, (up, ur, dr, dn, dl, ul)) = le
     in case dir of
-      UR -> existingnodeshelper le sid (sharednodes le DL) DL lands
-      R  -> existingnodeshelper le sid (sharednodes le L) L lands
-      DR -> existingnodeshelper le sid (sharednodes le UL) UL lands
-      DL -> existingnodeshelper le sid (sharednodes le UR) UR lands
-      L  -> existingnodeshelper le sid (sharednodes le R)  R lands
-      UL -> existingnodeshelper le sid (sharednodes le DR) DR lands
+      UR -> existingnodeshelper le sid (sharednodes le DL) DL hextiles
+      R  -> existingnodeshelper le sid (sharednodes le L) L hextiles
+      DR -> existingnodeshelper le sid (sharednodes le UL) UL hextiles
+      DL -> existingnodeshelper le sid (sharednodes le UR) UR hextiles
+      L  -> existingnodeshelper le sid (sharednodes le R)  R hextiles
+      UL -> existingnodeshelper le sid (sharednodes le DR) DR hextiles
 
 -- fill in a node list with just the nodes facing
--- direction on a landedge
-sharednodes :: LandEdge -> Direction -> NodeList
+-- direction on a HexTile
+sharednodes :: HexTile -> Direction -> NodeList
 sharednodes (_, _, _, (up, ur, dr, dn, dl,ul)) dir
   = case dir of 
       UR -> (0,0,0,ur,up,0)
@@ -285,12 +290,12 @@ sharednodes (_, _, _, (up, ur, dr, dn, dl,ul)) dir
       L  -> (0,0,0,0,dr,ur)
       UL -> (0,0,up,ul,0,0)
 
--- takes a current landedge
+-- takes a current HexTile
 -- an id (this is the start, so we don't get stuck in an infinite loop
--- a direction (this time the direction of the new land
-existingnodeshelper :: LandEdge -> Int -> NodeList -> Direction -> [LandEdge] -> NodeList
-existingnodeshelper le sid nl dir lands
-  = nodeunify (enodescw le sid nl dir lands) (enodesccw le sid nl dir lands)
+-- a direction (this time the direction of the new hextile
+existingnodeshelper :: HexTile -> Int -> NodeList -> Direction -> [HexTile] -> NodeList
+existingnodeshelper le sid nl dir hextiles
+  = nodeunify (enodescw le sid nl dir hextiles) (enodesccw le sid nl dir hextiles)
 
 -- choose non-zero items for each elem in a nodelist
 nodeunify :: NodeList -> NodeList -> NodeList
@@ -332,36 +337,36 @@ ccw_move DR = (DL, R)
 ccw_move R  = (DR, UR)
 
 -- search clockwise for points around a space
-enodescw :: LandEdge -> Int -> NodeList -> Direction -> [LandEdge] -> NodeList
-enodescw current sid acc dir lands
+enodescw :: HexTile -> Int -> NodeList -> Direction -> [HexTile] -> NodeList
+enodescw current sid acc dir hextiles
  = let (go, indir) = cw_move dir
-  in case (landindir current dir lands) of
+  in case (hextileindir current dir hextiles) of
     Nothing -> acc
     Just le -> let (id, _, _,_)  = le in
       if (sid == id) then acc else (enodescw le sid 
-      (nodeunify acc (sharednodes le indir)) indir lands)
+      (nodeunify acc (sharednodes le indir)) indir hextiles)
 
 -- search counterclockwise for points around a space
-enodesccw :: LandEdge -> Int -> NodeList -> Direction -> [LandEdge] -> NodeList
-enodesccw current sid acc dir lands
+enodesccw :: HexTile -> Int -> NodeList -> Direction -> [HexTile] -> NodeList
+enodesccw current sid acc dir hextiles
  = let (go, indir) = ccw_move dir
-  in case (landindir current dir lands) of
+  in case (hextileindir current dir hextiles) of
     Nothing -> acc
     Just le -> let (id, _, _,_)  = le in
       if (sid == id) then acc else (enodesccw le sid 
-      (nodeunify acc (sharednodes le indir)) indir lands)
+      (nodeunify acc (sharednodes le indir)) indir hextiles)
 
--- get a land in a direction
-landindir :: LandEdge -> Direction -> [LandEdge] -> Maybe LandEdge
-landindir le dir lands=
-  let fakeboard = (0, [], lands, [])
+-- get a hextile in a direction
+hextileindir :: HexTile -> Direction -> [HexTile] -> Maybe HexTile
+hextileindir le dir hextiles=
+  let fakeboard = (0, [], hextiles, [])
   in case dir of
-    UR -> landtoupright le fakeboard
-    R  -> landtoright le fakeboard
-    DR -> landtodownright le fakeboard
-    DL -> landtodownleft le fakeboard
-    L  -> landtoleft le fakeboard
-    UL -> landtoupleft le fakeboard
+    UR -> hextiletoupright le fakeboard
+    R  -> hextiletoright le fakeboard
+    DR -> hextiletodownright le fakeboard
+    DL -> hextiletodownleft le fakeboard
+    L  -> hextiletoleft le fakeboard
+    UL -> hextiletoupleft le fakeboard
 
 -- given a nodeset, return a list of empty nodes for each
 -- 0 value, starting with id

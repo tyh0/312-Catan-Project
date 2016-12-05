@@ -21,10 +21,19 @@ import Data.Maybe
 -- A player has: 
 -- A set of buildable tokens (15 roads, 3 settlements, 3 cities)
 -- A hand of resource cards
--- A collection of development cards
-data Player
- = BuildingTokens ResourceHand DevCardHand 
-  deriving(Show)
+-- A collection of development cards in hand
+-- A collection of development cards played
+-- A turn order
+-- A number of victory points
+
+data Player = Player
+  { id :: Int -- Player number (eg: Player 1, Player 2, etc)
+  , turn :: Int -- Assigned at the beginning of the game
+  , resourcehand :: ResourceHand -- Resources the player has
+  , devcardhand :: DevCardHand -- Unplayed dev cards
+  , activedevcards :: DevCardHand -- dev cards player has used, eg: 3 knights
+  , victorypoints :: Int -- total victory points
+  } deriving (Show,Eq)
 
 -- a player's hand of resources is a list of resource cards
 type ResourceHand
@@ -46,18 +55,15 @@ type ResourceCard
 -- monopoly
 -- year of plenty
 data DevCardValue = K | VP | RB | M | YOP
- deriving(Show)
+ deriving(Show, Eq)
 
 type DevCard
  = (Int, DevCardValue)
 
-
-
-
 -- A move consists a player and each phase
 -- An initial game also counts as a move
 data SCMove
- = Player SCRollPhase SCResourcesPhase SCTradePhase SCBuildPhase 
+ = MovePlayer SCRollPhase SCResourcesPhase SCTradePhase SCBuildPhase 
  | InitBoard
   deriving(Show)
 
@@ -104,7 +110,7 @@ data SCPort =
 
 data Resource = 
   Brick | Grain | Wood | Ore | Sheep
-  deriving(Show)
+  deriving(Show, Eq)
 
 -- tools to build up the initial board
 

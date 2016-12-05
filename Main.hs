@@ -3,6 +3,7 @@ import System.Random
 import System.Random.Shuffle (shuffle')
 import Data.List
 import Data.Maybe
+import Text.Printf
 
 -- Settlers
 
@@ -200,7 +201,7 @@ hextiletoupright (_, _, _, (top, ur, _, _, _, _)) (_, _, hextiles, _) =
 -- or none if this is at an edge of the board
 hextiletodownleft :: HexTile -> SCBoard -> Maybe HexTile
 hextiletodownleft (_, _, _, (_, _, _, down, dl, _)) (_, _, hextiles, _) =
-  find (\ (_, _, _, (top, ur, _, down, dl, _)) -> top == dl && ur == dl) hextiles
+  find (\ (_, _, _, (top, ur, _, _, _, _)) -> top == dl && ur == dl) hextiles
 
 -- hextiletodownright returns the hextile down and to the right
 -- or none if this is at an edge of the board
@@ -243,45 +244,39 @@ boardwithlist (r:rs) (x:xs) (d:ds) board = boardwithlist rs xs ds (addhextile bo
 data Direction = UR | R | DR | DL | L | UL
   deriving(Show)
 
--- next direction going clockwise
-nextdir :: Direction -> Direction
-nextdir UR = R
-nextdir R = DR
-nextdir DR = DL
-nextdir DL = L
-nextdir L = UL
-nextdir UL = UR
-
 -- directions to add
 starting_directions = 
-  [DL, -- the first direction can be anything
-   DL, DL, DR, DR, R, R, UR, UR, UL, UL, L, -- outer ring
-   DL, DL, DR, R, UR, UL, L, -- inner ring
+  [UR, -- the first direction can be anything
+   DL, DL, DR, DR, R, -- This is where an error happens
+   R, UR, UR, UL, UL, L, -- outer ring
+   DL, DL, DR, R, UR, UL, -- inner ring
    DL] -- center
 
 -- find the last hextile added in a board (the one with the highest id)
 lasthextileadded :: SCBoard -> Maybe HexTile
-lasthextileadded (_, _, hextiles, _) 
-  = foldl lasthextilehelper Nothing hextiles
-
--- True if the first HexTile has a higher id
-higherid :: HexTile -> HexTile -> Bool
-higherid (id1, _, _, _) (id2, _, _, _) 
-  | id1 > id2 = True
-  | otherwise = False
-
--- helper for finding the max hextile
-lasthextilehelper :: Maybe HexTile -> HexTile -> Maybe HexTile
-lasthextilehelper Nothing any = Just any
-lasthextilehelper (Just l1) l2
-  | higherid l1 l2 = Just l1
-  | otherwise = Just l2
+lasthextileadded (_, _, [], _) = Nothing
+lasthextileadded (_, _, (x:_), _) = Just x
 
 addhextile :: SCBoard -> SCResource -> Int -> Direction -> SCBoard
 addhextile board hextile rollno dir =
   let prev = lasthextileadded board in 
     case prev of Nothing -> addfirsthextile hextile rollno
-                 Just pl -> addnexthextile board hextile rollno pl dir
+                 Just pl -> addnexthextilecheck board hextile rollno pl dir
+
+-- addnexthextilecheck checks if the next hextile to add exists, then continues
+addnexthextilecheck :: SCBoard -> SCResource -> Int -> HexTile -> Direction -> SCBoard
+addnexthextilecheck board res rollno lasthextile dir
+  = let (_,_,lands,_) = board
+        count = length lands
+        result = addnexthextile board res rollno lasthextile dir
+        chk1 = hextileindirb lasthextile dir board
+        chk2 = hextileindirb lasthextile dir result
+    in case (chk1, chk2) of
+      (Just any, _) -> error
+        (printf "Land already exists: %d lands placed\n %s\n%s\n%s\n" 
+          count (show any) (show lasthextile) (show board))
+      (Nothing, Nothing) -> error (printf "placed in wrong direction\n%s" (show result))
+      (Nothing, Just any) -> result
 
 -- add first hextile to a brand new board
 addfirsthextile :: SCResource -> Int -> SCBoard
@@ -299,7 +294,7 @@ addfirsthextile hextile rollno
 --    that are not already there
 addnexthextile :: SCBoard -> SCResource -> Int -> HexTile -> Direction -> SCBoard
 addnexthextile (id, nodes, hextiles, roads) hextile rollno prevhextile direction =
-  let existingnodes = getexistingnodes prevhextile direction hextiles
+  let existingnodes = getexistingnodeschk prevhextile direction hextiles
       (newnodes, newnodeset) = add_needed_nodes existingnodes (id + 1)
       nodesneeded = length newnodes
       newedges = makeneedededges newnodeset roads (id + 1 + nodesneeded)
@@ -309,23 +304,39 @@ addnexthextile (id, nodes, hextiles, roads) hextile rollno prevhextile direction
         (id, hextile, rollno, newnodeset):hextiles,
         newedges ++ roads)
 
+-- getexistingnodeschk wraps getexisting nodes and errors if there
+-- aren't at least 2 fields set
+getexistingnodeschk :: HexTile -> Direction -> [HexTile]-> NodeList
+getexistingnodeschk ht dir hts
+  = let newnodeset = getexistingnodes ht dir hts
+        (a,b,c,d,e,f) = newnodeset
+        count = length (filter (\ x -> x /= 0) [a,b,c,d,e,f])
+        in if (count < 2) then (error "no overlap") else newnodeset
+
 -- fill in each slot in the nodeset for a hextile with 0 if there
+-- input direction is the direction we moved in to get to the new node
 -- is no node for it, or the node's id if there is
 getexistingnodes :: HexTile -> Direction -> [HexTile]-> NodeList
 -- first add the ones from the previous edge
 -- then use a recursive helper to look for more
+
+{- I don't actually need to flip this do I?
 getexistingnodes le dir hextiles =
   let (sid, _, _, (up, ur, dr, dn, dl, ul)) = le
     in case dir of
-      UR -> existingnodeshelper le sid (sharednodes le DL) DL hextiles
+      UR -> existingnodeshelper le sid (sharednodes le DL) DLhextiles
       R  -> existingnodeshelper le sid (sharednodes le L) L hextiles
       DR -> existingnodeshelper le sid (sharednodes le UL) UL hextiles
       DL -> existingnodeshelper le sid (sharednodes le UR) UR hextiles
       L  -> existingnodeshelper le sid (sharednodes le R)  R hextiles
       UL -> existingnodeshelper le sid (sharednodes le DR) DR hextiles
+-}
+
+getexistingnodes le dir hextiles
+  = let (sid,_, _, _) = le
+  in existingnodeshelper le sid (sharednodes le dir) dir hextiles
 
 -- fill in a node list with just the nodes facing
--- direction on a HexTile
 sharednodes :: HexTile -> Direction -> NodeList
 sharednodes (_, _, _, (up, ur, dr, dn, dl,ul)) dir
   = case dir of 
@@ -338,7 +349,9 @@ sharednodes (_, _, _, (up, ur, dr, dn, dl,ul)) dir
 
 -- takes a current HexTile
 -- an id (this is the start, so we don't get stuck in an infinite loop
--- a direction (this time the direction of the new hextile
+-- a direction (this time the direction of the new hextile)
+-- and returns a nodelist for the new hextile, with 0 for any nodes
+-- that dont yet exist, and ids for those that do
 existingnodeshelper :: HexTile -> Int -> NodeList -> Direction -> [HexTile] -> NodeList
 existingnodeshelper le sid nl dir hextiles
   = nodeunify (enodescw le sid nl dir hextiles) (enodesccw le sid nl dir hextiles)
@@ -346,7 +359,7 @@ existingnodeshelper le sid nl dir hextiles
 -- choose non-zero items for each elem in a nodelist
 nodeunify :: NodeList -> NodeList -> NodeList
 nodeunify (a1,b1,c1,d1,e1,f1) (a2,b2,c2,d2,e2,f2) = 
-  let nz = (\ a b -> if (a == 0) then a else b) in
+  let nz = (\ a b -> if (a /= 0) then a else b) in
     ((nz a1 a2),
       (nz b1 b2),
       (nz c1 c2),
@@ -386,7 +399,7 @@ ccw_move R  = (DR, UR)
 enodescw :: HexTile -> Int -> NodeList -> Direction -> [HexTile] -> NodeList
 enodescw current sid acc dir hextiles
  = let (go, indir) = cw_move dir
-  in case (hextileindir current dir hextiles) of
+  in case (hextileindir current go hextiles) of
     Nothing -> acc
     Just le -> let (id, _, _,_)  = le in
       if (sid == id) then acc else (enodescw le sid 
@@ -396,13 +409,23 @@ enodescw current sid acc dir hextiles
 enodesccw :: HexTile -> Int -> NodeList -> Direction -> [HexTile] -> NodeList
 enodesccw current sid acc dir hextiles
  = let (go, indir) = ccw_move dir
-  in case (hextileindir current dir hextiles) of
+  in case (hextileindir current go hextiles) of
     Nothing -> acc
     Just le -> let (id, _, _,_)  = le in
       if (sid == id) then acc else (enodesccw le sid 
       (nodeunify acc (sharednodes le indir)) indir hextiles)
 
 -- get a hextile in a direction
+hextileindirb:: HexTile -> Direction -> SCBoard -> Maybe HexTile
+hextileindirb le dir board 
+  = case dir of
+    UR -> hextiletoupright le board
+    R  -> hextiletoright le board
+    DR -> hextiletodownright le board
+    DL -> hextiletodownleft le board
+    L  -> hextiletoleft le board
+    UL -> hextiletoupleft le board
+
 hextileindir :: HexTile -> Direction -> [HexTile] -> Maybe HexTile
 hextileindir le dir hextiles=
   let fakeboard = (0, [], hextiles, [])
@@ -432,6 +455,7 @@ add_needed_nodes_helper acc (up, ur, dr, dn, dl, ul) id
   (up, ur, dr, dn, id, ul) (id + 1)
   | ul == 0 = add_needed_nodes_helper ((id, NoBuilding):acc) 
   (up, ur, dr, dn, dl, id) (id + 1)
+  | (length acc) > 4 = error "too many nodes"
   | otherwise = (acc, (up, ur, dr, dn, dl, ul))
 
 -- given a nodeset, create empty RoadEdges for any that don't exist
@@ -457,4 +481,86 @@ findroad a b roads
 neededpairs :: NodeList -> [(Int, Int)]
 neededpairs (a, b, c, d, e,f)
   = [(a,b), (b, c), (c,d), (d,e), (e,f), (f,a)]
+
+
+-- validate checks a board to make sure it meets certain criteria
+
+data TestResult = OK | Failure [Char]
+  deriving( Show )
+
+
+validate :: SCBoard -> [TestResult]
+validate b = [right_number_of_lands b,
+  right_number_of_nodes b,
+  same_number_nodes_as_lands b,
+  right_number_of_outside_nodes b]
+
+right_number_of_lands :: SCBoard -> TestResult
+right_number_of_lands (_, _, lands, _) 
+  | (length lands) == 19 = OK
+  | otherwise 
+    = Failure (printf "Expected 19 hexes, but there are %d" (length lands))
+
+right_number_of_nodes :: SCBoard -> TestResult
+right_number_of_nodes (_, nodes, _, _) 
+  | (length nodes) == 55 = OK
+  | otherwise 
+    = Failure (printf "Expected 55 nodes, but there are %d" (length nodes))
+
+-- checks if there are the same number of unique nodes as there are in the
+same_number_nodes_as_lands :: SCBoard -> TestResult
+same_number_nodes_as_lands (_, nodes, lands, _) 
+  = let n_nodes = length nodes
+        n_lands = count_unique_nodes_in_lands lands []
+    in if (n_lands == n_nodes) then OK else 
+      Failure (printf "%d nodes, %d unique nodes in HexTiles" n_nodes n_lands)
+
+count_unique_nodes_in_lands :: [HexTile] -> [Int]-> Int
+
+count_unique_nodes_in_lands [] acc = length acc
+count_unique_nodes_in_lands (l:ls) acc
+  = let (_,_,_, (a,b,c,d,e,f)) = l
+    in  count_unique_nodes_in_lands ls (add_nl_uniques [a,b,c,d,e,f] acc)
+
+-- given a list of numbers that may not be unique
+-- and an accumulator of unique numbers,
+-- return a list of all unique numbers
+add_nl_uniques :: [Int] -> [Int] -> [Int]
+add_nl_uniques lst acc = foldl (\ a e -> if (elem e a) then a else (e:a)) acc lst
+
+no_duplicate_roads :: SCBoard -> TestResult
+no_duplicate_roads (_,_,_,roads) = duproadhelper roads []
+
+duproadhelper :: [RoadEdge] -> [(Int,Int)] -> TestResult
+duproadhelper [] acc = OK
+duproadhelper (x:xs) acc 
+  = let (_, _, a, b) = x
+  in if ((elem (a, b) acc) || (elem (b,a) acc))
+      then Failure "Duplicate roads detected"
+      else duproadhelper xs ((a,b):acc)
+
+lands_connected_to_node :: SCBoard -> Int -> [HexTile]
+lands_connected_to_node (_, _, lands, _) id
+  = foldl (landconnectedhelper id) [] lands
+
+landconnectedhelper :: Int -> [HexTile] -> HexTile -> [HexTile]
+landconnectedhelper id acc nxt =
+  let (_, _, _, (a,b,c,d,e,f)) = nxt
+    in if (elem id [a,b,c,d,e,f]) then (nxt:acc) else acc
+
+all_lands_connected :: SCBoard -> [[HexTile]]
+all_lands_connected board =
+ let (_, nodes, _, _) = board
+ in map (\ (id, _) -> (lands_connected_to_node board id)) nodes
+
+right_number_of_outside_nodes :: SCBoard -> TestResult
+right_number_of_outside_nodes board 
+  = let (_, nodes, _, _) = board
+        connected = map (\ (id, _) -> (lands_connected_to_node board id)) nodes
+        counts = map length connected
+        just2 = filter (\a -> a == 2 || a == 1) counts
+        total = length just2
+        in if (total == 30) then OK else (Failure (printf "total %d, expected 30" total))
+
+-- unit tests
 

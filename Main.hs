@@ -1,6 +1,7 @@
 module CatanProject where
 import System.Random
 import System.Random.Shuffle (shuffle')
+import System.Random.dice
 import Data.List
 import Data.Maybe
 
@@ -458,3 +459,6 @@ neededpairs :: NodeList -> [(Int, Int)]
 neededpairs (a, b, c, d, e,f)
   = [(a,b), (b, c), (c,d), (d,e), (e,f), (f,a)]
 
+-- seems to be outputting type (IO Int). 
+-- unsure how to get a simple Int out of it though :/
+doroll = sum randomRs(1,6) randomRs(1,6)

@@ -1,9 +1,10 @@
 module CatanProject where
 import System.Random
 import System.Random.Shuffle (shuffle')
-import System.Random.dice
+-- import System.Random.dice
 import Data.List
 import Data.Maybe
+
 
 -- Settlers
 
@@ -95,10 +96,11 @@ type ResourceSet = (Int, Int, Int, Int, Int)
 type SCBuildPhase = [(Player, Building, ResourceSet)]
 
 -- This represents adding a buidling to the board
--- Either place a new settlement or a new city at Node ID
+-- Either place a new settlement or a new city at Int Node ID 
+-- Belonging to player with Int ID
 data Building
-  = NewSettlement Int
-  | NewCity Int
+  = NewSettlement Int Int
+  | NewCity Int Int
   deriving(Show)
 
 data SCResource =
@@ -157,6 +159,9 @@ data MaybeSCRoad = NoRoad | ARoad Player
   deriving(Show)
 
 data MaybeSCBuilding = NoBuilding| Settlement Player | City Player
+  deriving(Show)
+
+data MaybeSCHexTile = NoHex | Hextile Board
   deriving(Show)
 
 -- An SCNode has an ID and possibly a building
@@ -456,9 +461,53 @@ findroad a b roads
 
 -- List all the pairs of nodes needed from a nodelist
 neededpairs :: NodeList -> [(Int, Int)]
-neededpairs (a, b, c, d, e,f)
-  = [(a,b), (b, c), (c,d), (d,e), (e,f), (f,a)]
+neededpairs (a, b, c, d, e,f) = 
+  [(a,b), (b, c), (c,d), (d,e), (e,f), (f,a)]
+
+ -- find a HexTile with the given tile roll value
+findhextilebytokenvalue :: Int -> [HexTile] -> [HexTile]
+findhextilebytokenvalue x [] = []
+findhextilebytokenvalue x ((_,_,i,_):t) =
+ | x == i = (_,_,i,_):findhextilebytokenvalue x t
+ | otherwise = findhextilebytokenvalue x t
+
+-- nodeunify :: NodeList -> NodeList -> NodeList
+-- nodeunify (a1,b1,c1,d1,e1,f1) (a2,b2,c2,d2,e2,f2) = 
+--   let nz = (\ a b ->  if (a == 0) then a else b) in
+--     ((nz a1 a2),
+--       (nz b1 b2),
+--       (nz c1 c2),
+--       (nz d1 d2),
+--       (nz e1 e2),
+--       (nz f1 f2))
+
+ -- -- find a HexTile with the given tile roll value
+ -- findhextilebytokenvalue :: Int -> [HexTile] -> [MaybeHexTile]
+ -- findhextilebytokenvalue x tiles = find (\ (_,_,y,_) -> (x == y)) tiles
+
+-- getboardtiles :: SCBoard -> [HexTile]
+-- getboardtiles board = (_,_,x,_)
+
 
 -- seems to be outputting type (IO Int). 
 -- unsure how to get a simple Int out of it though :/
-doroll = sum randomRs(1,6) randomRs(1,6)
+-- didn't get this to work yet. v v
+-- doroll :: (StdGen -> Int) -> Int
+-- doroll = do 
+-- 	a <- newStdGen
+-- 	print . sum take 2 $ (randomRs(1,6) a)
+
+-- printroll :: (StdGen -> Int) -> Int
+-- printroll = do doroll
+
+-- Find tiles with number containing the input Int
+-- See if there are any buildings on that tile
+-- Give the player owning that building the resource on the tile
+-- 2 if the building is a city
+-- distributeresources :: Int SCBoard -> SCResourcesPhase
+-- distributeresources x board = 
+-- 	do
+-- 		tiles <- findhextilebytokenvalue  
+
+
+ 
